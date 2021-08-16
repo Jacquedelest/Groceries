@@ -1,0 +1,137 @@
+---
+title: "Groceries Product Analysis with Apriori"
+output: html_notebook
+---
+
+Import data set and read data set into data frame
+```{r}
+groceries <- read.csv("C:/Users/Jacque de l'est/Documents/Datasets for Data Science/Groceries_dataset.csv", encoding = "UTF-8",)
+head(groceries, 10)
+```
+
+See descriptive statistics of data frame
+```{r}
+summary(groceries)
+```
+
+See missing values of data frame
+```{r}
+colSums(is.na(groceries))
+```
+
+Convert datatype of Member_number to numeric datatype and datatype of Date to date
+```{r}
+groceries$Member_number <- as.numeric(groceries$Member_number)
+groceries$Date <- as.Date(groceries$Date, format = "%d-%M-%Y")
+head(groceries)
+```
+```{r}
+sorted_groceries <- groceries[order(groceries$Member_number),]
+head(sorted_groceries, 10)
+```
+
+Group purchased items by customer ID and purchasing date
+```{r}
+library(plyr)
+itemList <- ddply(sorted_groceries, c("Member_number","Date"), 
+                  function(df1)
+                      paste(df1$itemDescription, collapse = ","))
+head(itemList, 10)
+```
+
+Delete columns Member_number and Date, rename column v1, and save to file
+```{r}
+clean_itemList <- drop(itemList[3])
+colnames(clean_itemList) <- 'Items'
+
+write.csv(clean_itemList, "ItemList.csv", quote=FALSE, row.names=TRUE)
+head(clean_itemList, 10)
+```
+
+Reads a transaction data file and creates a transactions object
+```{r}
+library(arules)
+groceries_tabular <- read.transactions("./ItemList.csv", format = "basket", cols = 1, sep = ",", skip = 1)
+```
+Show descriptive statistics of data frame
+```{r}
+summary(groceries_tabular)
+```
+
+Create Top 10 Groceries
+```{r}
+top10_groceries <- itemFrequency(groceries_tabular, type = "absolute")
+top10_groceries <- sort(top10_groceries, decreasing = TRUE)[1:10]
+top10_groceries <- data.frame("ProductName" = names(top10_groceries),
+                              row.names = NULL)
+head(top10_groceries, 10)
+write.csv(top10_groceries, file="Top10_Groceries.txt")
+```
+
+Create Bottom 10 Groceries
+```{r}
+bottom10_groceries <- itemFrequency(groceries_tabular, type="absolute")
+bottom10_groceries <- sort(bottom10_groceries, decreasing=FALSE)[1:10]
+bottom10_groceries <- data.frame("ProductName" = names(bottom10_groceries),
+                                 row.names=NULL)
+head(bottom10_groceries)
+write.csv(bottom10_groceries, file="bottom10_groceries.txt")
+```
+
+Create an item frequency plot for the top 10 items
+```{r}
+if (!require("RColorBrewer")) {
+  #install color package of R
+  install.packages("RColorBrewer")
+  #include library RColorBrewer
+  library(RColorBrewer)
+}
+
+itemFrequencyPlot(groceries_tabular, 
+                  topN = 10, 
+                  type = "absolute", 
+                  col = brewer.pal(8,'Pastel2'), 
+                  main = "Absolute Item Frequency Plot")
+itemFrequencyPlot(groceries_tabular, 
+                  topN = 10, 
+                  type = "relative", 
+                  col = brewer.pal(8,'Pastel2'), 
+                  main = "Relative Item Frequency Plot")
+```
+
+Use apriori algorithm
+```{r}
+assorules <- apriori(groceries_tabular, 
+                      parameter = list(support = 10/length(groceries_tabular), 
+                                       minlen = 2, 
+                                       conf = 0.05
+                                       )
+                      )
+```
+
+```{r}
+summary(assorules)
+```
+
+```{r}
+inspect(assorules[1:10])
+```
+
+Visualize the Association Rules
+```{r}
+library(arulesViz)
+plot(assorules, jitter=0)
+```
+
+```{r}
+plot(assorules, method="grouped", control=list(k=5))
+```
+
+```{r}
+plot(assorules[1:20], method="graph")
+```
+
+```{r}
+plot(assorules[1:20], method="paracoord")
+```
+
